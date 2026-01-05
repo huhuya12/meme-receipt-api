@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_node: ${{ steps.flags.outputs.has_node }}
+      has_python: ${{ steps.flags.outputs.has_python }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: flags
+        run: |
+          if [ -f package.json ]; then echo "has_node=true" >> $GITHUB_OUTPUT; else echo "has_node=false" >> $GITHUB_OUTPUT; fi
+          if [ -f pyproject.toml ] || [ -f requirements.txt ]; then echo "has_python=true" >> $GITHUB_OUTPUT; else echo "has_python=false" >> $GITHUB_OUTPUT; fi
+
+  node:
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: |
+          npm ci || (npm install && npm ci)
+
+      - name: Lint (if configured)
+        run: |
+          npm run lint --if-present
+
+      - name: Typecheck (if configured)
+        run: |
+          npm run typecheck --if-present
+
+      - name: Test (if configured)
+        run: |
+          npm test --if-present
+
+      - name: Build (if configured)
+        run: |
+          npm run build --if-present
+
+      - name: Dependency audit (non-blocking)
+        run: |
+          npm audit --audit-level=high || true
+
+  python:
+    needs: detect
+    if: needs.detect.outputs.has_python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e .; fi
+          pip install pytest ruff mypy bandit pip-audit || true
+
+      - name: Lint (ruff)
+        run: |
+          ruff check . || true
+
+      - name: Typecheck (mypy)
+        run: |
+          mypy . || true
+
+      - name: Security scan (bandit)
+        run: |
+          bandit -q -r . || true
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip-audit || true
+
+      - name: Tests (pytest)
+        run: |
+          pytest -q || true
