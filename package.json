@@ -1,0 +1,14 @@
+{
+  "name": "meme-receipt-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "format:check": "prettier -c .",
+    "audit": "npm audit --audit-level=high"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0"
+  }
+}
