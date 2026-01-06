@@ -1,0 +1,9 @@
+name: CI
+on: [push]
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node --check worker.js
