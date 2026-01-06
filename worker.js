@@ -2,51 +2,49 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 根路径：健康检查
-    if (url.pathname === "/") {
-      return new Response("meme-receipt-api is running ✅", {
-        headers: { "content-type": "text/plain; charset=utf-8" },
-      });
+    // Health check
+    if (url.pathname === "/health") {
+      return json({ ok: true, ts: Date.now() });
     }
 
-    // 写入 KV
-    if (url.pathname === "/set" && request.method === "POST") {
-      const body = await request.json();
-      const { key, value } = body;
+    // Read receipt
+    // GET /receipt?id=xxx
+    if (url.pathname === "/receipt" && request.method === "GET") {
+      const id = url.searchParams.get("id");
+      if (!id) return json({ ok: false, error: "missing id" }, 400);
 
-      if (!key || value === undefined) {
-        return new Response(
-          JSON.stringify({ error: "key 和 value 必须提供" }),
-          { status: 400 }
-        );
-      }
+      const key = `receipt:${id}`;
+      const data = await env.MEME_KV.get(key, { type: "json" });
 
-      await env.MEME_KV.put(key, JSON.stringify(value));
-
-      return new Response(
-        JSON.stringify({ success: true, key }),
-        { headers: { "content-type": "application/json" } }
-      );
+      return json({ ok: true, id, data: data ?? null });
     }
 
-    // 读取 KV
-    if (url.pathname === "/get") {
-      const key = url.searchParams.get("key");
-      if (!key) {
-        return new Response(
-          JSON.stringify({ error: "缺少 key 参数" }),
-          { status: 400 }
-        );
-      }
+    // Write receipt
+    // POST /receipt   body: {"id":"xxx","data":{...}}
+    if (url.pathname === "/receipt" && request.method === "POST") {
+      const body = await safeJson(request);
+      if (!body?.id) return json({ ok: false, error: "missing id" }, 400);
 
-      const value = await env.MEME_KV.get(key);
-      return new Response(
-        JSON.stringify({ key, value }),
-        { headers: { "content-type": "application/json" } }
-      );
+      const key = `receipt:${body.id}`;
+      await env.MEME_KV.put(key, JSON.stringify(body.data ?? {}));
+      return json({ ok: true, id: body.id });
     }
 
-    // 404
     return new Response("Not Found", { status: 404 });
   },
 };
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+}
+
+async function safeJson(request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
