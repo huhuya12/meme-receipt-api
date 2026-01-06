@@ -1,0 +1,27 @@
+name: Release (Package)
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make zip
+        run: |
+          mkdir -p dist
+          zip -r dist/meme-receipt-api.zip . -x "*.git*" -x "node_modules/*" -x "dist/*"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/meme-receipt-api.zip
+          generate_release_notes: true
