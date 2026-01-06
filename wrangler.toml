@@ -1,0 +1,7 @@
+name = "meme-receipt-api"
+main = "worker.js"
+compatibility_date = "2026-01-06"
+
+kv_namespaces = [
+  { binding = "MEME_KV", id = "把你Cloudflare里MEME_KV的id填这里" }
+]
