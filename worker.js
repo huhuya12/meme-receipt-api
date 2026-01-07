@@ -190,24 +190,23 @@ export default {
   },
 };
 // ===== Gate-1 去重（60秒窗口）=====
-// 放在：你校验 body 成功之后、真正写入 receipt (kv.put("r:...")) 之前
+// 放置位置：POST /receipt 分支里，校验通过后、写入 receipt 之前
 
 const fp = [
   String(body.symbol || "").toUpperCase(),
   String(body.action || "").toUpperCase(),
-  String(body.price || ""),
-  String(body.size || ""),
+  String(body.price ?? ""),
+  String(body.size ?? ""),
   String(body.source || "manual")
 ].join("|");
 
 const fpKey = "fp:" + fp;
 
 // 60秒内出现过 -> 认为重复，不再入库
-if (await env.MEME_KV.get(fpKey)) {
-  return new Response(JSON.stringify({ ok: true, duplicate: true, message: "duplicate in 60s" }), {
-    status: 200,
-    headers: { "content-type": "application/json; charset=utf-8" }
-  });
+const existed = await env.MEME_KV.get(fpKey);
+if (existed) {
+  // 用你原来项目里的 json() / Response 都行，关键是：return 必须在函数里
+  return json(request, 200, { ok: true, duplicate: true, message: "duplicate in 60s" });
 }
 
 // 标记60秒
