@@ -189,3 +189,26 @@ export default {
     return bad(req, `No route: ${method} ${path}`, "not_found", 404);
   },
 };
+// ===== Gate-1 去重（60秒窗口）=====
+// 放在：你校验 body 成功之后、真正写入 receipt (kv.put("r:...")) 之前
+
+const fp = [
+  String(body.symbol || "").toUpperCase(),
+  String(body.action || "").toUpperCase(),
+  String(body.price || ""),
+  String(body.size || ""),
+  String(body.source || "manual")
+].join("|");
+
+const fpKey = "fp:" + fp;
+
+// 60秒内出现过 -> 认为重复，不再入库
+if (await env.MEME_KV.get(fpKey)) {
+  return new Response(JSON.stringify({ ok: true, duplicate: true, message: "duplicate in 60s" }), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" }
+  });
+}
+
+// 标记60秒
+await env.MEME_KV.put(fpKey, "1", { expirationTtl: 60 });
